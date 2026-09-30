@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertTriangle, Plus, Pencil, Trash2, Package, Minus, Search, Download, History, ArrowLeftRight, FileText } from "lucide-react";
+import { AlertTriangle, Plus, Pencil, Trash2, Package, Minus, Search, Download, History, ArrowLeftRight, FileText, CalendarClock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InventoryHistoryTab } from "@/components/dashboard/inventory/InventoryHistoryTab";
 import { InventoryTransfersTab, TransferDialog } from "@/components/dashboard/inventory/InventoryTransfersTab";
@@ -65,6 +65,8 @@ export default function InventoryPage() {
 
   const lowStock = inventory.filter((i) => i.quantity <= i.min_stock);
   const daysToExpiry = (d?: string | null) => d ? Math.ceil((new Date(d).getTime() - Date.now()) / 86400000) : null;
+  const expired = inventory.filter((i) => { const d = daysToExpiry(i.expiry_date); return d !== null && d < 0 && i.quantity > 0; });
+  const expiringSoon = inventory.filter((i) => { const d = daysToExpiry(i.expiry_date); return d !== null && d >= 0 && d <= 30 && i.quantity > 0; });
   const allCategories = Array.from(new Set([...categories, ...inventory.map((i) => i.category)]));
   const visible = useMemo(() => inventory.filter((i) => {
     const t = search.toLowerCase();
@@ -211,7 +213,7 @@ export default function InventoryPage() {
       <Tabs defaultValue="stock" className="space-y-4">
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="stock"><Package className="mr-1.5 h-3.5 w-3.5" />Stock</TabsTrigger>
-          <TabsTrigger value="history"><History className="mr-1.5 h-3.5 w-3.5" />Movement history</TabsTrigger>
+          <TabsTrigger value="history"><History className="mr-1.5 h-3.5 w-3.5" />Activity log</TabsTrigger>
           <TabsTrigger value="transfers"><ArrowLeftRight className="mr-1.5 h-3.5 w-3.5" />Branch transfers</TabsTrigger>
           <TabsTrigger value="reports"><FileText className="mr-1.5 h-3.5 w-3.5" />Reports</TabsTrigger>
         </TabsList>
@@ -233,8 +235,22 @@ export default function InventoryPage() {
         </motion.div>
       )}
 
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        {[["Items", inventory.length], ["Low stock", lowStock.length], ["Out of stock", inventory.filter((i) => i.quantity <= 0).length], ["Stock value", `₦${stockValue.toLocaleString()}`]].map(([l, v]) => (
+      {(expired.length > 0 || expiringSoon.length > 0) && (
+        <Card className="border-destructive/30 bg-destructive/5 glass-card">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-destructive" />
+              <p className="text-sm font-medium">Expiry Alert</p>
+              <Button size="sm" variant="outline" className="ml-auto h-7" onClick={() => setFilter("expiring")}>Show items</Button>
+            </div>
+            {expired.length > 0 && <p className="text-xs"><span className="font-medium text-destructive">Expired:</span> {expired.map((i) => `${i.name} (${i.expiry_date})`).join(", ")}</p>}
+            {expiringSoon.length > 0 && <p className="text-xs"><span className="font-medium">Expiring within 30 days:</span> {expiringSoon.map((i) => `${i.name} (${daysToExpiry(i.expiry_date)}d)`).join(", ")}</p>}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-5">
+        {[["Items", inventory.length], ["Low stock", lowStock.length], ["Out of stock", inventory.filter((i) => i.quantity <= 0).length], ["Expiring / expired", expiringSoon.length + expired.length], ["Stock value", `₦${stockValue.toLocaleString()}`]].map(([l, v]) => (
           <Card key={l as string} className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-semibold">{v}</p></CardContent></Card>
         ))}
       </div>
